@@ -1,0 +1,46 @@
+version: '2.0'
+
+networks:
+  jenkins-network:
+    driver: bridge
+
+volumes:
+  data:
+  certs:
+
+services:
+  dind:
+    container_name: jenkins-docker
+    image: docker:dind
+    privileged: true
+    restart: unless-stopped
+    networks:
+      jenkins-network:
+        aliases:
+          - docker
+    volumes:
+      - data:/home/jenkins/agent:rw
+      - certs:/certs/client
+    environment:
+      - DOCKER_TLS_CERTDIR=/certs
+
+  jenkins:
+    container_name: jenkins-agent
+    build:
+      context: ./
+      args:
+        JENKINS_URL: ${JENKINS_URL}
+        JENKINS_SECRET: ${JENKINS_SECRET}
+    env_file:
+      - ./.env
+    restart: unless-stopped
+    networks:
+      - jenkins-network
+    volumes:
+      - data:/home/jenkins/agent:rw
+      - certs:/certs/client:ro
+    environment:
+      - DOCKER_HOST=tcp://docker:2376
+      - DOCKER_CERT_PATH=/certs/client
+      - DOCKER_TLS_VERIFY=1
+    command: java -jar /usr/share/jenkins/agent.jar -jnlpUrl ${JENKINS_URL} -secret ${JENKINS_SECRET} -workDir /home/jenkins/agent
